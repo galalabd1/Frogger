@@ -1,0 +1,1195 @@
+#####################################################################
+#
+# CSC258H5S Fall 2021 Assembly Final Project
+# University of Toronto, St. George
+#
+# Student: Abdalaziz Galal, 1006536562
+#
+# Bitmap Display Configuration:
+# - Unit width in pixels: 16
+# - Unit height in pixels: 16
+# - Display width in pixels: 256
+# - Display height in pixels: 256
+# - Base Address for Display: 0x10000000 GlobalData
+#
+# Which milestone is reached in this submission?
+# (See the assignment handout for descriptions of the milestones)
+# - Milestone 1/2/3/4/5 (choose the one the applies)
+
+#5, 
+#implemented:
+#1) Display number of lives remaining
+#2)After final player death, display game
+#over/retry screen. Restart the game if the
+#“retry” option is chosen.
+#3) Add a third row in each of the water and
+#road sections.
+#4) Have objects in different rows move at
+#different speeds.(trucks move faster)
+
+#hard
+#5) display players score.
+#6) only managed to display time but not the full slow time .
+#7) make frog eat random mosquitoes, to increase score.
+
+
+
+.data
+
+## text output to user.
+lost: .asciiz "You lost! :/ Your final score is: "
+won: .asciiz "You won! Your final score is: "
+timePlayed: .asciiz "The time played was (sec): "
+question: .asciiz "Would you like to play again?"
+
+## variables to use
+time: .word 0
+map: .word 0x10000000
+numLives: .word 3 #Start the lives counter with 3
+score: .word 0 #Start the score counter with 0
+goalsArrived: .word 0 #Start goals counter
+
+#sec/pixel time statement
+timemosquito: .word 7000 #7 seconds
+timelog: .word 1000 # 1 second
+timeVehicle: .word 300 #0.3 seconds
+
+#Random variables
+random1: .word 0
+random2: .word 0
+random3: .word 0
+random4: .word 0
+random5: .word 0
+random6: .word 0 
+
+#Colors to use in our game.
+border: .word 0x000000 
+border2: .word 0x000001 
+border3: .word 0x000002 
+street: .word 0x515A5A #our street color(rectangle of cars)
+river1: .word 0x21618C #or river color(rectangle of logs)
+safe: .word 0x239B56 #safe rectangles color
+endblock: .word 0x0B5345 #color of the end block 
+frog: .word 0xE75480 #color of frog
+car: .word 0x8B0000 #color of cars
+truck: .word 0xFFFFFF #color of trucks
+mosquito: .word 0xFF0040 #color of mosquito
+log: .word 0x2F0701 #color of log
+arrival: .word 0x9932CC #c9932CColor of arrival blocks
+arrivalno: .word 0xF4D03F #color change when you arrive at a black
+lives: .word 0xB40404 #color of lives
+lifeNo: .word 0xFFFFFF #color when you lose life
+black: .word 0x000000 
+.text
+
+
+
+#Macro to make the randoms outside the loop
+.macro randomOut($dir)
+li $v0, 30
+syscall
+li $v0, 42
+li $a1, 50
+syscall
+mul $t8, $a0, 100
+sw $t8, $dir
+.end_macro
+
+#Macro to make the randoms inside the loop
+.macro randomIn($dir)
+li $v0, 30
+syscall
+li $v0, 42
+li $a1, 46
+syscall
+add $a0, $a0, 4
+mul $t8, $a0, 100
+sw $t8, $dir
+.end_macro
+
+
+#macro to paint a car/truck pixel
+.macro paint($position, $color)
+lw $t4, map($zero)
+lw $t6, $color
+addi $t4, $t4, $position
+sw $t6, ($t4)
+.end_macro
+
+
+#macro to paint the whole map black
+.macro paintBackground()
+leep:
+lw $t2, black
+sw $t2, ($t1)
+addi $t1, $t1, 4
+addi $t5, $t5, 1
+ble $t5, 1020, leep
+.end_macro
+
+# Eat mosquito=10 pts
+# Reach a goal=50 pts
+
+#PAINING OF FROG MOVEMENT#
+
+	# reset game variables
+	startGame:
+
+	addi $t9, $zero, 0
+	sw $t9, time
+	sw $t9, score
+	sw $t9, goalsArrived
+	addi $t9, $zero, 3
+	sw $t9, numLives
+
+	lw $t1, map($zero) #Position on map to zero
+	lw $t0, endblock #Color to paint with
+	addi $t5, $zero, 0 #Initialize the counter
+
+	paintSafeUp:
+	sw $t0, ($t1) #We paint the position ($t1) with the color that is stored in $t0.
+	addi $t1, $t1, 4 #Move the position to be able to paint from left to right
+	addi $t5, $t5, 1 #add one to counter
+	blt $t5, 64, paintSafeUp 
+	
+	#Paint the SafeNo  of the last row individually
+	lw $t1, map($zero)
+	addi $t1, $t1, 260
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 264
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 272
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 276
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 284
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 288
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 296
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 300
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 308
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 312
+	sw $t0, ($t1)
+	
+	#We paint the arrival points
+	lw $t1, map($zero)
+	addi $t1, $t1, 268
+	lw $t0, arrival
+	addi $t5, $zero, 0
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 280
+	lw $t0, arrival
+	addi $t5, $zero, 0
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 292
+	lw $t0, arrival
+	addi $t5, $zero, 0
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 304
+	lw $t0, arrival
+	addi $t5, $zero, 0
+	sw $t0, ($t1)
+
+	#Reinitialize everything to paint
+	lw $t1, map($zero) #Position on the map at zero
+	addi $t1, $t1, 512 #Position we want to start painting at
+	lw $t0, safe #Color to paint with
+	addi $t5, $zero, 0 #Start the while counter at zero
+
+	paintSafeMedium:
+	sw $t0, ($t1)
+	addi $t1, $t1, 4
+	addi $t5, $t5, 1
+	blt $t5, 16, paintSafeMedium
+	
+	#Reinitialize everything to paint
+	lw $t1, map($zero)
+	addi $t1, $t1, 768
+	lw $t0, safe
+	addi $t5, $zero, 0
+	
+	paintSafeBottom:
+	sw $t0, ($t1)
+	addi $t1, $t1, 4
+	addi $t5, $t5, 1
+	blt $t5, 64, paintSafeBottom
+	
+	#Reinitialize everything to paint
+	lw $t1, map($zero)
+	lw $t2, map($zero)
+	addi $t1, $t1, 0
+	addi $t2, $t2, 960
+	lw $t0, border
+	addi $t5, $zero, 0
+	
+	paintBorders:
+	sw $t0, ($t2)
+	addi $t2, $t2, 4
+	addi $t5, $t5, 1
+	blt $t5, 16, paintBorders
+	
+	addi $t5, $zero, 0 #Reset the counter.
+	
+	paintBorders3:
+	sw $t0, ($t1)
+	addi $t1, $t1, 4
+	addi $t5, $t5, 1
+	blt $t5, 48, paintBorders3
+	
+	#Paint the lives
+	lw $t1, map($zero)
+	addi $t1, $t1, 72
+	lw $t0, lives
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 80
+	lw $t0, lives
+	sw $t0, ($t1)
+	
+	lw $t1, map($zero)
+	addi $t1, $t1, 88
+	lw $t0, lives
+	sw $t0, ($t1)
+	
+	
+	#Loop where the position of the frog will restart
+	reloadMap:
+	
+	
+	#We reset everything to paint
+	lw $t1, map($zero)
+	addi $t1, $t1, 320
+	lw $t0, river1
+	addi $t5, $zero, 0
+	
+	paintRiver:
+	sw $t0, ($t1)
+	addi $t1, $t1, 4
+	addi $t5, $t5, 1
+	blt $t5, 48, paintRiver
+	
+	#We start all over to paint
+	lw $t1, map($zero)
+	lw $t2, map($zero)
+	addi $t1, $t1, 576
+	addi $t2, $t2, 704
+	lw $t0, street
+	addi $t5, $zero, 0
+
+	paintStreet1:
+	sw $t0, ($t1)
+	sw $t0, ($t2)
+	addi $t1, $t1, 4
+	addi $t2, $t2, 4
+	addi $t5, $t5, 1
+	blt $t5, 16, paintStreet1
+	
+	#We reset everything to paint
+	lw $t1, map($zero)
+	addi $t1, $t1, 640
+	lw $t0, street
+	addi $t5, $zero, 0
+	
+	paintStreet2:
+	sw $t0, ($t1)
+	addi $t1, $t1, 4
+	addi $t5, $t5, 1
+	blt $t5, 16, paintStreet2
+	
+	#Reinitialize all to edit
+	lw $t1, map($zero)
+	lw $t2, map($zero)
+	addi $t1, $t1, 0
+	addi $t2, $t2, 60
+	lw $t0, border2
+	lw $t3, border3
+	addi $t5, $zero, 0
+	
+	paintBorders2:
+	sw $t0, ($t1)
+	sw $t3, ($t2)
+	addi $t1, $t1, 64
+	addi $t2, $t2, 64
+	addi $t5, $t5, 1
+	blt $t5, 16, paintBorders2
+	
+	#Paint the frog
+	lw $t1, map($zero)
+	addi $t1, $t1, 860
+	lw $t0, frog
+	addi $t5, $zero, 0
+	sw $t0, ($t1)
+	
+			
+        #  FUNCTION TO MOVE THE FROG #
+
+	li $s7, 860 #Initial position of the frog
+	lw $t1, map($zero) #Initial position of the map
+	lw $s6, safe #Load in $s6 the color of the safe, which is the color where the frog will be at the beginning.
+	
+	#Creation of initial Randoms
+	randomOut(random1)
+	randomOut(random2)
+	randomOut(random3)
+	randomOut(random4)
+	randomOut(random5)
+	randomOut(random6)
+	
+	loop: #Main loop of the move
+	
+	lw $t1, map($zero) #Reset $t1 to the initial position of the map
+	
+	#Program timer
+	li $v0, 30 #Syscall to know the current time
+	syscall
+	addi $t8, $a0, 100 #Add 100ms to it.
+	loopTimer:
+	li $v0, 30 #We know the current time again.
+	syscall
+	blt $a0, $t8, loopTimer #Compare the current time to see if it is less than the previous one with an additional 100ms, if it is greater it means that 100ms have already passed
+	lw $t8, time #Get what the memory space of the time has
+	addi $t8, $t8, 100 #Since 100ms have already passed we add 100ms to the time
+	sw $t8, time #Save the elapsed time in pa memory position
+	
+	#Labels for the creation/move of the cars/trucks/logs
+	jal generateMosquito
+	jal moveCar1
+	jal moveTruck2
+	jal moveCar3
+	jal movelog4
+	jal movelog5
+	jal movelog6
+	jal createCar1
+	jal createTruck2
+	jal createCar3
+	jal createlog4
+	jal createlog5
+	jal createlog6
+	getKey: #Loop that will check to see if any key is fetched
+	la $s0, 0xffff0000 #Store the value of the keyboard boolean to know if any key was chosen or not
+	lw $s0, 0($s0) #Store the value of the keyboard boolean to see if any key was chosen or not
+	beq $s0, 1, keyboard #If any key was obtained (1 = true | 0 = false) go to label "keyboard", otherwise go back to loop
+	j loop
+	
+	keyboard:
+	add $t1, $t1, $s7 #We put in $t1 the current frog position ($s7).
+	sw $s6, ($t1) #Paint with color $s6, the frog's current position
+	lw $t1, map($zero) #Reset the position of $t1
+	move $t5, $s7 #Move to $t5 the current frog position
+	
+	la $s1, 0xffff0004 
+	lw $s1, 0($s1) #Get the key that was pressed in $s1
+	
+	beq $s1, 119, up #If the key is "w"	
+	beq $s1, 87, up #If the key is "W", beq $s1, 115, up
+	beq $s1, 115, down #If the key is "s"
+	beq $s1, 83, down #If key is "S"
+	beq $s1, 97, left #If key is "a"
+	beq $s1 , 65, left #If key is "A"
+	beq $s1, 100, right #If the key is "d"
+	beq $s1, 68, right #If key is "D"
+	beq $s1, 27, exit #If the key is "Esc"
+	lw $t2, frog #If none of these keys were pressed, we paint the frog color again in that place.
+	add $t1, $t1, $s7 #If none of those keys was pressed we paint the color of the frog again at that place
+	sw $t2, ($t1) #If none of those keys were pressed we paint the color of the frog again at that place.
+	b loop
+	
+
+	exit:
+	li $v0, 10 #Program stops.
+	syscall
+	
+	up:
+	addi $s7, $s7, -64 #We decrease the position by 64, which is equivalent to moving up one pixel.
+	j moveFrog
+	
+	down:
+	addi $s7, $s7, 64 #Increase by 64 the position, which is equivalent to moving down one pixel.
+	j moveFrog
+	
+	left:
+	addi $s7, $s7, -4 #Decrease the position by 4, which is equivalent to moving to the left one pixel.
+	j moveFrog
+	
+	right:
+	addi $s7, $s7, 4 #We increase by 4 the position, which is equivalent to moving to the right one pixel.
+	j moveFrog
+	
+	moveFrog:
+	add $t1, $t1, $s7 #Add to $t1 where you want to move ($s7 had the current position, but was modified in the functions above).
+	lw $s6, ($t1) #Place the color of the future position in $s6
+	jal evaluate #Go to the "evaluate" tag to evaluate what is the future position.
+	
+	#This will only be executed if the frog didn't die or crash into an edge.
+	lw $t2, frog #Loads the color of the frog
+	sw $t2, ($t1) #Paint the next position with the frog's color (Frog is moved)
+	j loop
+	
+	evaluate: #Evaluate what is the next position, to know what to do.
+	beq $s6, 0x8B0000, loseLife #car
+	beq $s6, 0xFFFFFF, loseLife #Truck
+	beq $s6, 0x21618C, loseLife #River
+	beq $s6, 0x000000, stop1 #DownEdge or UpEdge 
+	beq $s6, 0x000001, stop2 #LeftEdge
+	beq $s6, 0x000002, stop3 #RightEdge
+	beq $s6, 0x0B5345, stop4 #SafeNo
+	beq $s6, 0x9932CC, goal #Goal not reached
+	beq $s6, 0xF4D03F, stop4 #Goal already reached
+	beq $s6, 0xFF0040, mosquito1 #Eating a mosquito1
+	jr $ra #Returns to "jal evaluate".
+	
+	stop1: #Function to stop the frog from passing the Up or Down edges of the map.
+	lw $t1, map($zero) #Start $t1 with zero position of map
+	add $t1, $t1, $t5 #Put in $t1 the current position of the frog (before it tries to move)
+	lw $t2, frog #Load the color of the frog in $t2
+	sw $t2, ($t1) #Paint the current position with the frog's color again (because it didn't move)
+	move $s7, $t5 #Move to the $s7 (current position) the position of $t5, because it didn't change position (Frog didn't move)
+	lw $s6, safe #Save the bottom position of the frog (it will always be safe)
+	j loop
+	
+	stop2: #Function to stop the frog from going over the left edge of the map
+	lw $t1, map($zero) #Start $t1 with zero map position
+	add $t1, $t1, $t5 #We put in $t1 the current position of the frog (before trying to move)
+	lw $t2, frog #Load the color of the frog in $t2
+	sw $t2, ($t1) #Paint the current position with the frog's color again (because it didn't move)
+	move $s7, $t5 #Move to the $s7 (current position) the position of $t5, because it didn't change position (Frog didn't move)
+	lw $s6, 4($t1) #Save the bottom position of the frog (it will always be the same as the one to the right of the frog)
+	j loop
+	
+	stop3: #Function to stop the frog from passing the right edge of the map.
+	lw $t1, map($zero) #Start $t1 with position zero of the map
+	add $t1, $t1, $t5 #We put in $t1 the current position of the frog (before trying to move)
+	lw $t2, frog #Load the color of the frog in $t2
+	sw $t2, ($t1) #Paint the current position with the frog's color again (because it didn't move)
+	move $s7, $t5 #Move to the $s7 (current position) the position of $t5, because it didn't change position (Frog didn't move)
+	lw $s6, -4($t1) #Save the bottom position of the frog (it will always be the same as the one to the left of the frog)
+	j loop
+	
+	stop4: #Function to stop the frog from passing the top edge (SafeNo) of the map.
+	lw $t1, map($zero) #Start $t1 with the zero position of the map
+	add $t1, $t1, $t5 #Put in $t1 the current position of the frog (before it tries to move)
+	lw $t2, frog #Load the color of the frog in $t2
+	sw $t2, ($t1) #Paint the current position with the frog's color again (because it didn't move)
+	move $s7, $t5 #Move to the $s7 (current position) the position of $t5, because it did not change position (Frog did not move)
+	lw $s6, log #Save the bottom position of the frog (it will always be log)
+	j loop
+	
+	goal: #Frog reached a goal
+	lw $t8, goalsArrived #Store the goalsArrived in $t8
+	add $t8, $t8, 1 #Increase by 1 the goals arrived because the frog has just reached a goal	
+	sw $t8, goalsArrived #Save new amount of goals arrived
+	lw $t9, score #Get the score that is taken
+	addi $t9, $t9, 50 #We add 50 pts to it
+	sw $t9, score #Store the new score in the memory space	  
+	lw $t2, arrivalno #Stores the color of "arrivalno" in $t2
+	sw $t2, ($t1) #The box where the frog arrived is painted "arrivalno".
+	  beq $t8, 4, win #Bifurcation to know if the 4 goals are already reached
+	j reloadMap
+	
+	loseLife: #Lose a frog life
+	lw $t9, numLives #I put in $t9 the value of lives
+	addi $t9, $t9, -1 #I subtract one from lives
+	sw $t9, numLives #Store the new value of the lives in the memory location
+	beq $t9, 2, lost1 #If only 1 life is lost
+	beq $t9, 1, lost2 #If 2 lives have been lost
+	beq $t9, 0, lost3 #If 3 lives are lost
+	j reloadMap
+	
+	lost1: #We remove the first life from the bitmap
+	lw $t2, lifeNo #We set the color to remove the life
+	lw $t1, map($zero) #Reset $t1 to map zero position
+	addi $t1, $t1, 88 #We set to the 1st life position
+	sw $t2, ($t1) #Paint the 1st life white
+	j reloadMap
+	
+	lost2: #Remove the second life from the bitmap
+	lw $t2, lifeNo #Set color to remove the life
+	lw $t1, map($zero) #Reset $t1 to map zero position
+	addi $t1, $t1, 80 #We set to the 2nd life position
+	sw $t2, ($t1) #Paint the 2nd life white
+	j reloadMap
+	
+	lost3: #Remove the third life from the bitmap and gameover
+	lw $t2, lifeNo #Set color to remove the life
+	lw $t1, map($zero) #Reset $t1 to map zero position
+	addi $t1, $t1, 72 #We set to the 3rd life position
+	sw $t2, ($t1) #Paint the 3rd life white
+	li $v0, 56 #We display the message of losing
+	la $a0, lost #Display the lose message
+	lw $t9, score #Store in $t9 the score counter value
+	move $a1, $t9 #Move the points value to $a1 to be displayed in the message
+	syscall
+	li $v0, 56 #Display the show time message
+	la $a0, timePlayed #Display the show time message
+	lw $t9, time #Store the value of the time counter in $t9
+	li $s5, 1000 #Store 1000 in $s5
+	div $t9, $s5 #Pass the time to seconds
+	mflo $a1 #Pass the integer time result to $a0
+	syscall
+	j endGame
+	
+	win: 
+	li $v0, 56 #We display the win message.
+	la $a0, won #Display the lose message
+	lw $t9, score #Store in $t9 the points counter value
+	move $a1, $t9 #Move the points value to $a1 to be displayed in the message
+	syscall
+	li $v0, 56 #Display the show time message
+	la $a0, timePlayed #Display the show time message
+	lw $t9, time #Store the value of the time counter in $t9
+	li $s5, 1000 #Store 1000 in $s5
+	div $t9, $s5 #Pass the time to seconds
+	mflo $a1 #Pass the integer time result to $a0
+	syscall
+	j endGame
+	
+	mosquito1: #The frog ate a mosquito
+	lw $t9, score #Get the score that it takes
+	addi $t9, $t9, 10 #We add 10 pts to it
+	sw $t9, score #Save the new score in memory space	
+	lw $t2, frog #We load the frog's color
+	sw $t2, ($t1) #Paint the next position with the frog color (Frog is moved)
+	lw $t9, map($zero) #Loads the map in t9
+	addi $t9, $t9, 640 #adds 640 to map position 0
+	blt $t1, $t9, case1 #If the mosquito position is less than 640, it is in lane 3 and goes to case 1, otherwise, it proceeds
+	lw $t9, map($zero)#The map is loaded in t9.
+	addi $t9, $t9, 704 #704 is added to map position 0
+	bgt $t1, $t9, case1 #If the position of the mosquito is greater than 704, it is in street 1 and goes to case 1, otherwise it is in street 2
+	lw $s6, street #Lets store that the color of the bottom of the frog is gray color of the street
+	j loop
+	
+	case1:
+	lw $s6, street #Leaves stored that the frog's bottom color is street gray.
+	j loop
+	
+	
+	#Generating the mosquito#
+	generateMosquito:
+	addi $t8, $zero, 0 #Reset $t8.
+	lw $t4, time #Store the current time of the program in $t4
+	lw $t6, timemosquito #Store 5000ms in $t6
+	div $t4, $t6 #Divide time by 5000ms
+	mfhi $t6 #Aggregate the remainder of the previous division
+	bnez $t6, return7 #Check if 5 seconds have passed, if not 5 seconds have not passed no mosquito is generated
+	#Proceed to generate a mosquito
+	
+	#Generate the random
+	generateRandom:
+	li $v0, 30 #Look for a random seed which will be the current time.
+	syscall
+	li $v0, 42 #Syscall to generate random
+	li $a1, 45 #The max bound for the random will be 46 (Possible positions between 580-760)
+	syscall
+	mul $t8, $a0, 4 #To get the exact position and not the cell number
+	addi $t8, $t8, 580 #Get the position in which the little mosquito will appear xD
+	lw $t9, map($zero) #Reset $t9 to the zero position of the map
+	add $t9, $t9, $t8 #Add to the initial position of the map the position in which the little mosquito will appear xD
+	lw $t4, ($t9) #Load the color of where the mosquito wants to appear
+	beq $t4, 0xE75480 ,generateRandom #If it wants to appear in a place where the frog is
+	beq $t4, 0x8B0000 ,generateRandom #If it wants to appear in a place where there is a carriage
+	beq $t4, 0xFFFFFF ,generateRandom #If you want to appear in a place where there is a truck
+	beq $t4, 0x000001 ,generateRandom #If you want to appear on a left border
+	beq $t4, 0x000002 ,generateRandom #If you want to appear on a right border
+	#Paint mosquito xD
+	lw $t6, mosquito #Load the mosquito color
+	sw $t6, ($t9) #Paint generated position with color mosquito xD
+	
+	return7:
+	jr $ra #Return to where the function was called.
+	
+	#Making logs#
+
+	#First Row#
+	createlog4:
+	lw $t4, map($zero) #Reset the position in the map to zero.
+	addi $t4, $t4, 504 #Obtain position 580
+	lw $t4, -12($t4) #Get 3 positions forward [TO ENABLE FOLLOWING CARS PUT 4].
+	beq $t4, 0x2F0701, return4 #Check if 2 pixels left is a log, if it is, generate none.
+	lw $t4, random4 #Store random2
+	lw $t6, time #Store time
+	div $t6, $t4 #Divide the time by random1
+	mfhi $t6 #Attach the remainder of the division
+	bnez $t6, return4 #We see if the time is divisible by the random if it is not we generate log
+	paint(504, log) #Paint the log (we generate it)
+	paint(500, log) #Paint the log (We generate it)
+	randomIn(random4) #Generate a new Random
+	j return4 #Return to where it was called createlog4
+	
+	movelog4:
+	lw $t6, time #We load time.
+	lw $t4, timelog #Load 1000ms to $t4
+	div $t6, $t4 #Divide time by 1000
+	mfhi $t6 #Aggregate the remainder
+	bnez $t6, return4 #If it is not zero, do not move the logs
+	#Move the log
+	lw $t6, map($zero) #Reset $t6 to the zero position of the map
+	addi $t6, $t6, 456 #Remove it to the position before the final one
+	li $s3, 0 #Reset the counter
+	lw $t9, map($zero)
+	addi $t9, $t9, 452 #Store 452 in $t9, which is the last position the frog can take
+	lw $t8, ($t9) #Get the color which is in $t9
+	beq $t8, 0xE75480, loseLife #The frog loses a life because it is in its last place it can be.
+	
+	
+	move4:
+	lw $t3, ($t6) #We get the color that is at the position of $t6.
+	beq $s3, 13, proceed4 #If the counter reached one cell before the end we go to the branch "proceed": beq $s3, 13, proceed4 #If the counter reached one cell before the end we go to the branch "proceed".
+	addi $s3, $s3, 1 #Increase the counter by 1	
+	beq $t3, 0xE75480, ran4 #If there is a frog
+	#If not a frog
+	sw $t3, -4($t6) #Store the color of the leftmost position to $t6
+	addi $t6, $t6, 4 #Add 1 pixel to the $t6 position
+	j move4
+	
+	ran4:
+	sw $t3, -4($t6) #Store the color of the position to the left of $t6.
+	addi $t6, $t6, 4 #Add 4 to $t6
+	addi $s7, $s7, -4 #Subtract 4 from the frog's position
+	j move4
+	
+	proceed4:
+	lw $t6, map($zero) #We restart $t6 with the map at position zero.
+	addi $t6, $t6, 504 #Move to the 708th map position
+	lw $t2, ($t6) #Load the color of the current position in $t2
+	beq $t2, 0xE75480, proceed41
+	lw $t3, -4($t6) #Load the color of the next position after the current position in $t3
+	beq $t3, 0xE75480, proceed42
+	bne $t2, $t3, return4 #Check if the two colors are not the same
+	lw $t2, -8($t6) #Load the color of 2 times the next position to the current one in $t3
+	beq $t2, $t3, P4 #Check if the two colors are not equal
+	j return4
+	
+	P4:
+	bne $t3, 0x2F0701, return4 #If in $t3 there is no log, we return.
+	li $v0, 32 #Sleep to speed up move
+	li $a0, 100 #Sleep to speed up move
+	syscall #Sleep to speed up move
+	lw $t4, river1 #Store color of "river1" in $t4
+	sw $t4, ($t6) #Paint the current position of the river color
+	lw $t4, log #Store the "log" color in $t4
+	sw $t4, -8($t6) #Paint the "log" color 2 times the left position to the current position in $t2
+	sw $t4, -12($t6) #Paint color "log" 3 times the left position to the current position in $t2
+	j return4
+	
+	proceed41:
+	li $v0, 32 #Sleep to speed up move.
+	li $a0, 100 #Sleep for speeding up move
+	syscall #Sleep to speed up the move
+	lw $t4, river1 #Store color of "river1" in $t4
+	sw $t4, ($t6) #Paint the current position of the river color
+	lw $t8, frog #Store frog color in t8
+	lw $t4, log #Store "log" color in $t4
+	addi $s7, $s7, -8
+	sw $t8, -8($t6)
+	sw $t4, -12($t6) #Paint color "river1" 3 times the left position to the current position in $t2
+	j return4
+	
+	proceed42:
+	li $v0, 32 #Sleep to speed up move.
+	li $a0, 100 #Sleep for speeding up the move
+	syscall #Sleep to speed up move
+	lw $t4, river1 #Store color of "river1" in $t4
+	sw $t4, ($t6) #Paint the current position of the river color
+	lw $t8, frog #Store frog color in t8
+	lw $t4, log #Store "log" color in $t4
+	addi $s7, $s7, -8
+	sw $t4, -4($t6)
+	sw $t4, -8($t6) #Paint the color "river1" 3 times the position from the left to the current position in $t2
+	sw $t8, -12($t6)
+	
+	return4:
+	jr $ra #Return to where the function was called.
+	
+	#Second Row#
+	createlog5:
+	lw $t4, map($zero) #Reset the position in the map to zero.
+	addi $t4, $t4, 388 #Obtain position 580
+	lw $t4, 12($t4) #Obtain 3 positions forward [TO ENABLE FOLLOWING CARS PUT 4].
+	beq $t4, 0x2F0701, return5 #Check if 2 pixels left is a log, if it is, generate none.
+	lw $t4, random5 #Store random2
+	lw $t6, time #Store time
+	div $t6, $t4 #Divide the time by random1
+	mfhi $t6 #Attach the remainder of the division
+	bnez $t6, return5 #We see if the time is divisible by the random if it is not we generate log
+	paint(388, log) #Paint the log (we generate it)
+	paint(392, log) #Paint the log (We generate it)
+	randomIn(random5) #Generate a new Random
+	j return5 #We return to where it was called createlog6
+	
+	movelog5:
+	lw $t6, time #We load time.
+	lw $t4, timelog #Load 1000ms to $t4
+	div $t6, $t4 #Divide time by 1000
+	mfhi $t6 #Aggregate the remainder
+	bnez $t6, return5 #If it is not zero, do not move the logs
+	#Move the log
+	lw $t6, map($zero) #Reset $t6 to the zero position of the map
+	addi $t6, $t6, 436 #Remove it to the position before the final one
+	li $s3, 0 #Reset the counter
+	lw $t9, map($zero)
+	addi $t9, $t9, 440 #Store 440 in $t9, which is the last position the frog can take
+	lw $t8, ($t9) #Get the color that is in $t9
+	beq $t8, 0xE75480, loseLife #The frog loses a life because it is in its last place it can be.
+	
+	move5:
+	lw $t3, ($t6) #We get the color that is at the position of $t6.
+	beq $s3, 13, proceed5 #If the counter reached one cell before the end we go to the branch "proceed": beq $s3, 13, proceed5 #If the counter reached one cell before the end we go to the branch "proceed".
+	addi $s3, $s3, 1 #Increase the counter by 1	
+	beq $t3, 0xE75480, ran5 #If there is a frog
+	#If not a frog
+	sw $t3, 4($t6) 
+	addi $t6, $t6, -4
+	j move5
+	
+	ran5:
+	sw $t3, 4($t6) #We store the color of the leftmost position of $t6.
+	addi $t6, $t6, -4 #We subtract 4 from $t6
+	add $s7, $s7, 4 #Add 4 to the frog's position
+	j move5
+	
+	proceed5:
+	lw $t6, map($zero) #Reset $t6 with the map at position zero.
+	addi $t6, $t6, 388 #Move to the 708th map position
+	lw $t2, ($t6) #Load the color of the current position in $t2
+	lw $t3, 4($t6) #Load the color of the next position after the current one in $t3
+	bne $t2, $t3, return5 #Check if the two colors are not the same
+	lw $t2, 8($t6) #Load the color of 2 times the next position to the current one in $t3
+	beq $t2, $t3, P5 #Check if the two colors are not equal
+	j return5
+	
+	P5:
+	bne $t3, 0x2F0701, return5 #If in $t3 there is no log, we return.
+	li $v0, 32 #Sleep to speed up move
+	li $a0, 100 #Sleep to speed up move
+	syscall #Sleep to speed up move
+	lw $t4, river1 #Store color of "river1" in $t4
+	sw $t4, ($t6) #Paint the current position of the river color
+	lw $t4, log #Store the "log" color in $t4
+	sw $t4, 8($t6) #Paint the color "river1" 2 times the left position to the current position in $t2
+	sw $t4, 12($t6) #Paint the color "river1" 3 times the left position to the current position in $t2.
+	return5:
+	jr $ra #Return to where the function was called.
+
+	#Third Row#
+	createlog6:
+	lw $t4, map($zero) #Reset the position in the map to zero.
+	addi $t4, $t4, 376 #Obtain position 580
+	lw $t4, -12($t4) #Obtain 3 positions forward [TO ENABLE FOLLOWING CARS SET 4].
+	beq $t4, 0x2F0701, return6 #Check if 2 pixels left is a log, if it is, generate none.
+	lw $t4, random6 #Store random2
+	lw $t6, time #Store time
+	div $t6, $t4 #Divide the time by random1
+	mfhi $t6 #Attach the remainder of the division
+	bnez $t6, return6 #We see if the time is divisible by the random if it is not we generate log
+	paint(376, log) #Paint the log (we generate it)
+	paint(372, log) #Paint the log (We generate it)
+	randomIn(random6) #Generate a new Random
+	j return6 #Return to where it was called createlog6
+	
+	movelog6:
+	lw $t6, time #We load time.
+	lw $t4, timelog #Load 1000ms to $t4
+	div $t6, $t4 #Divide time by 1000
+	mfhi $t6 #Aggregate the remainder
+	bnez $t6, return6 #If it is not zero, do not move the logs
+	#Move the log
+	lw $t6, map($zero) #Reset $t6 to the zero position of the map
+	addi $t6, $t6, 328 #Remove it to the position before the final one
+	li $s3, 0 #Reset the counter
+	lw $t9, map($zero) #Store the zero position of the map in $t9
+	addi $t9, $t9, 324 #Store 324 in $t9 which is the last position the frog can take
+	lw $t8, ($t9) #Get the color that is in $t9
+	beq $t8, 0xE75480, loseLife #The frog loses a life because it is in its last place where it can be.
+	
+	move6:
+	lw $t3, ($t6) #We get the color that is in the position of $t6.
+	beq $s3, 13, proceed6 #If the counter reached one square before the end we go to the branch "proceed".
+	addi $s3, $s3, 1 #Increase the counter by 1	
+	beq $t3, 0xE75480, ran6 #If there is a frog
+	#If not a frog
+	sw $t3, -4($t6) #In $t3 we store the color to the left of the position of $t6
+	addi $t6, $t6, 4 #Increase the position of $t6 to the next pixel for next pass
+	j move6
+	
+	ran6:
+	sw $t3, -4($t6) #Store the color of the leftmost position of $t6.
+	addi $t6, $t6, 4 #Add 4 to $t6
+	add $s7, $s7, -4 #Subtract 4 from the frog's position
+	j move6
+	
+	proceed6:
+	lw $t6, map($zero) #We restart $t6 with the map at position zero.
+	addi $t6, $t6, 376 #Move to the 708th map position
+	lw $t2, ($t6) #Load the color of the current position in $t2
+	lw $t3, -4($t6) #Load the color of the next position after the current one in $t3
+	bne $t2, $t3, return6 #Check if the two colors are not the same
+	lw $t2, -8($t6) #Load the color of 2 times the next position to the current one in $t3
+	beq $t2, $t3, P6 #Check if the two colors are not equal
+	j return6
+	
+	P6:
+	bne $t3, 0x2F0701, return6 #If in $t3 there is no log, we return.
+	li $v0, 32 #Sleep to speed up move
+	li $a0, 100 #Sleep to speed up move
+	syscall #Sleep to speed up move
+	lw $t4, river1 #Store the color of the "river1" in $t4
+	sw $t4, ($t6) #Paint the current position of the river color
+	lw $t4, log #Store the "log" color in $t4
+	sw $t4, -8($t6) #Paint the color "river1" 2 times the left position to the current position in $t2
+	sw $t4, -12($t6) #Paint color "river1" 3 times the left position to the current position in $t2.
+	return6:
+	jr $ra #We return to where the function was called.
+	
+	#Making Vehicles#
+	
+	#First Row#
+	createCar1:
+	lw $t4, map($zero) #Reset the position on the map to zero.
+	addi $t4, $t4, 708 #Get position 708
+	lw $t4, 8($t4) #Get 2 positions forward [TO ENABLE FOLLOWING CARS PUT 4].
+	beq $t4, 0x8B0000, return #Check if 2 pixels to the right is a carriage, if it is, generate none.
+	lw $t4, random1 #Store random1
+	lw $t6, time #Store time
+	div $t6, $t4 #Divide the time by random1
+	mfhi $t6 #Hold the remainder of the division
+	bnez $t6, return #Check if the time is divisible by the random if it is not we do not generate carriage
+	#Check if there is a frog in the place where the car will be generated, to lose a life to the player.
+	lw $t6, map($zero) #Reset the position of $t6 to that of the map (zero)
+	addi $t6, $t6, 708 #Obtain map position 708 (where the car is generated)
+	lw $t6, ($t6) #Obtain the color
+	beq $t6, 0xE75480, loseLife #If the color is Frog, one life is lost
+	paint(708, car) #We paint the car (We generate it)
+	randomIn(random1) #Generate a new Random
+	j return #Back to where it was called createcar1
+	
+	moveCar1:
+	lw $t6, time #We load time.
+	lw $t4, timeVehicle #Load 200ms to $t4
+	div $t6, $t4 #Divide time by 200
+	mfhi $t6 #Harvest the remainder
+	bnez $t6, return #If non-zero, no cars to move
+	#Move the car
+	lw $t6, map($zero) #Reset $t6 to the zero position of the map
+	addi $t6, $t6, 756 #Remove it to the position before the final one
+	li $s3, 0 #Reset the counter.
+	
+	move1:
+	lw $t3, ($t6) #Get the color that is at the position of $t6.
+	beq $s3, 13, proceed1 #If the counter reached one square before the end we go to the branch "proceed".
+	addi $s3, $s3, 1 #Increase the counter by 1	
+	beq $t3, 0x8B0000, car1 #Color of the car
+	beq $t3, 0x424949, cal1 #Street color
+	beq $t3, 0xE75480, ran1 #Frog color
+	beq $t3, 0xFF0040, mos1 #If mosquito color.
+	
+	mos1:
+	lw $t2, street #Load color of street into $t2.
+	lw $t9, 4($t6) #Store the color of the following position
+	beq $t9, 0xE75480, mos11 #If it is a frog color
+	sw $t2, 4($t6) #Paint lane1
+	mos11:
+	addi $t6, $t6, -4 #We subtract 4 from the move position.
+	j move1
+	
+	ran1:
+	lw $t2, street #Load color of street to $t2.
+	lw $t9, 4($t6) #Store the color of the next position
+	beq $t9, 0xFF0040, ran11 #If it is a mosquito color
+	sw $t2, 4($t6) #Paint color "street" the rightmost position to the current position in $t2.
+	ran11:
+	addi $t6, $t6, -4 #We subtract 4 from the position of the move.
+	j move1
+	
+	car1:
+	lw $t2, car #We load the car color in $t2.
+	lw $t9, 4($t6) #Store color of next position
+	beq $t9, 0xE75480, loseLife #Color Frog (Run over)
+	sw $t2, 4($t6) #Paint color "car" the rightmost position to the current position in $t2
+	addi $t6, $t6, -4 #Subtract 4 from the move position
+	j move1
+
+	cal1:
+	lw $t2, street #We load the color of street into $t2.
+	lw $t9, 4($t6) #Store the color of the next position
+	beq $t9, 0xFF0040, cal11 #mosquito color
+	beq $t9, 0xE75480, cal11 #Frog color
+	sw $t2, 4($t6) #Paint color "street" the rightmost position to the current position in $t2.
+	
+	cal11:
+	addi $t6, $t6, -4 #We subtract 4 from the position of the move.
+	j move1
+	
+	proceed1:
+	lw $t6, map($zero) #Reset $t6 with the map at position zero.
+	addi $t6, $t6, 708 #Move to the 708th map position
+	lw $t2, ($t6) #Load the color of the current position in $t2
+	lw $t3, 4($t6) #Load the color of the next position after the current position in $t3
+	beq $t2, $t3, P1 #Check if the two colors are the same
+	j return
+	
+	P1:
+	bne $t3, 0x8B0000, return #If in $t3 there is a car, we return.
+	li $v0, 32 #Sleep to quicken
+	li $a0, 30 #Sleep to speed up move
+	syscall #Sleep to speed up move
+	lw $t9, 8($t6) #Store color of next 2 positions
+	beq $t9, 0xE75480, loseLife #Color Frog (Frog got run over xD putty D:)
+	lw $t4, street #Store the color of "street" in $t4
+	sw $t4, ($t6) #Paint the current position of the street color
+	lw $t4, car #Store "car" color in $t4
+	sw $t4, 8($t6) #Paint the color "street" 2 times the right position to the current position in $t2.
+	
+	return:
+	jr $ra #We return to where the function was called.
+	
+	#Second Row#
+	createCar3:
+	lw $t4, map($zero) #Reset the position on the map to zero.
+	addi $t4, $t4, 580 #Obtain position 580
+	lw $t4, 8($t4) #Get 2 positions forward [TO ENABLE FOLLOWING CARS PUT 4].
+	beq $t4, 0x8B0000, return3 #Check if 2 pixels to the right is a carriage, if it is, generate none.
+	lw $t4, random3 #Store the random1
+	lw $t6, time #Store time
+	div $t6, $t4 #Divide the time by the random3
+	mfhi $t6 #Attach the remainder of division
+	bnez $t6, return3 #Check if the time is divisible by the random if it is not we generate a carriage
+	#Check if there is a frog in the place where the car will be generated, to lose a life to the player.
+	lw $t6, map($zero) #Reset the position of $t6 to that of the map (zero)
+	addi $t6, $t6, 580 #Obtain map position 580 (where the car is generated)
+	lw $t6, ($t6) #Obtain the color
+	beq $t6, 0xE75480, loseLife #If the color is Frog, one life is lost
+	paint(580, car) #We paint the car (We generate it)
+	randomIn(random3) #Generate a new Random
+	j return3 #Return to where it was called createcar1
+	
+	moveCar3:
+	lw $t6, time #We load time.
+	lw $t4, timeVehicle #Charge 200ms to $t4
+	div $t6, $t4 #Divide time by 200
+	mfhi $t6 #Aggregate the remainder
+	bnez $t6, return3 #If non-zero, no cars to move
+	#Move the car
+	lw $t6, map($zero) #Reset $t6 to the zero position of the map
+	addi $t6, $t6, 628 #Remove it to the position before the final one
+	li $s3, 0 #Reset the counter.
+	
+	move3:
+	lw $t3, ($t6) #Get the color that is at the position of $t6.
+	beq $s3, 13, proceed3 #If the counter reached one square before the end we go to the branch "proceed".
+	addi $s3, $s3, 1 #Increase the counter by 1	
+	beq $t3, 0x8B0000, car3 #Color of the car
+	beq $t3, 0x424949, cal3 #Street color
+	beq $t3, 0xE75480, ran3 #Frog color
+	beq $t3, 0xFF0040, mos3 #If mosquito color.
+	
+	mos3:
+	lw $t2, street #Load color of street into $t2.
+	lw $t9, 4($t6) #Store the color of the following position
+	beq $t9, 0xE75480, mos33 #If it is a frog color
+	sw $t2, 4($t6) #Paint lane1
+	mos33:
+	addi $t6, $t6, -4 #We subtract 4 from the position of the move.
+	j move3
+	
+	ran3:
+	lw $t2, street #Load color of street to $t2.
+	lw $t9, 4($t6) #Store the color of the next position
+	beq $t9, 0xFF0040, ran33 #If it is a mosquito color
+	sw $t2, 4($t6) #Paint color "street" the right position to the current position in $t2.
+	ran33:
+	addi $t6, $t6, -4 #We subtract 4 from the position of the move.
+	j move3
+	
+	car3:
+	lw $t2, car #Load car color in $t2.
+	lw $t9, 4($t6) #Store color of the next position
+	beq $t9, 0xE75480, loseLife #Color Frog (Run over)
+	sw $t2, 4($t6) #Paint color "car" the rightmost position to the current position in $t2
+	addi $t6, $t6, -4 #Subtract 4 from the move position
+	j move3
+	cal3:
+	lw $t2, street #Store color of street in $t2.
+	lw $t9, 4($t6) #Store the color of the following position
+	beq $t9, 0xFF0040, cal33 #mosquito color
+	beq $t9, 0xE75480, cal33 #Color frog
+	sw $t2, 4($t6) #Paint color "street" the rightmost position to the current position in $t2.
+	
+	cal33:
+	addi $t6, $t6, -4 #We subtract 4 from the position of the move.
+	j move3
+	
+	proceed3:
+	lw $t6, map($zero) #Reset $t6 with the map at position zero.
+	addi $t6, $t6, 580 #We move to map position 708
+	lw $t2, ($t6) #Load the color of the current position in $t2
+	lw $t3, 4($t6) #Load the color of the next position after the current one in $t3
+	beq $t2, $t3, P3 #Check if the two colors are the same
+	j return3
+	
+	P3:
+	bne $t3, 0x8B0000, return3 #If in $t3 there is no car, we return.
+	li $v0, 32 #Sleep to speed up the motion
+	li $a0, 30 #Sleep to speed up move
+	syscall #Sleep to speed up move
+	lw $t9, 8($t6) #Store color of next 2 positions
+	beq $t9, 0xE75480, loseLife #Color Frog (Frog got run over xD putty D:)
+	lw $t4, street #Store the color of "street" in $t4
+	sw $t4, ($t6) #Paint the current position of the street color
+	lw $t4, car #Store "car" color in $t4
+	sw $t4, 8($t6) #Paint the color "street" 2 times the position from the right to the current position in $t2.
+	
+	return3:
+	jr $ra #We return to where the function was called.
+	
+	
+	#Truck Row#
+	createTruck2:
+	lw $t4, map($zero) #Reset the position on the map to zero.
+	addi $t4, $t4, 696 #Obtain position 580
+	lw $t4, -12($t4) #Obtain 3 positions forward [TO ENABLE FOLLOWING CARS SET 4].
+	beq $t4, 0xFFFFFF, return2 #Check if 2 pixels left is a truck, if it is, generate none.
+	lw $t4, random2 #Store random2
+	lw $t6, time #Store time
+	div $t6, $t4 #Divide the time by random1
+	mfhi $t6 #Attach the remainder of the division
+	bnez $t6, return2 #Check if the time is divisible by the random if it is not we generate truck
+	#Check if there is a frog in the place where the truck will be generated, to lose a life to the player.
+	lw $t6, map($zero) #Reset the position of $t6 to that of the map (zero)
+	addi $t6, $t6, 696 #Obtain map position 580 (where the truck is generated)
+	lw $t6, ($t6) #Get the color
+	beq $t6, 0xE75480, loseLife #If the color is Frog, one life is lost
+	paint(696, truck) #We paint the truck (We generate it)
+	paint(692, truck) #We paint the truck (We generate it)
+	randomIn(random2) #Generate a new Random
+	j return2 #Return to where it was called createTruck1
+	
+	moveTruck2:
+	lw $t6, time #We load time.
+	lw $t4, timeVehicle #Load 200ms to $t4
+	div $t6, $t4 #Divide time by 200
+	mfhi $t6 #Aggregate the remainder
+	bnez $t6, return2 #If it is not zero, we do not have to move the truck
+	#Move the truck
+	lw $t6, map($zero) #Reset $t6 to the zero position of the map
+	addi $t6, $t6, 648 #Remove it to the position before the final one
+	li $s3, 0 #Reset the counter.
+	
+	move2:
+	lw $t3, ($t6) #Get the color that is at the position of $t6.
+	beq $s3, 13, proceed2 #If the counter reached one square before the end we go to the branch "proceed".
+	addi $s3, $s3, 1 #Increase the counter by 1	
+	beq $t3, 0xFFFFFF, ctruck #Color of the truck
+	beq $t3, 0x515A5A, cstreet #Street color
+	beq $t3, 0xE75480, ran2 #Frog color
+	beq $t3, 0xFF0040, mos2 #If it is a mosquito color
+	
+	mos2:
+	lw $t2, street #Load color of street in $t2.
+	lw $t9, -4($t6) #Store the color of the following position
+	beq $t9, 0xE75480, mos22 #If it is a frog color
+	sw $t2, -4($t6) #Paint lane2
+	mos22:
+	addi $t6, $t6, 4 #We add 4 to the position of the move.
+	j move2
+	
+	ran2:
+	lw $t2, street #Load color of street in $t2.
+	lw $t9, -4($t6) #Store the color of the following position
+	beq $t9, 0xFF0040, ran22 #If it is a mosquito color
+	sw $t2, -4($t6) #Paint color "street" the left position to the current position in $t2.
+	ran22:
+	addi $t6, $t6, 4 #We add 4 to the position of the move.
+	j move2
+	
+	ctruck:
+	lw $t2, truck #Load color of truck in $t2.
+	lw $t9, -4($t6) #Store the color of the next position
+	beq $t9, 0xE75480, loseLife #Color Frog (Run over)
+	sw $t2, -4($t6) #Paint the color "truck" the leftmost position to the current position in $t2
+	addi $t6, $t6, 4 #Add 4 to the move position
+	j move2
+
+	cstreet:
+	lw $t2, street #We load the color of street in $t2.
+	lw $t9, -4($t6) #Store the color of the following position
+	beq $t9, 0xFF0040, cstreet2 #mosquito color
+	beq $t9, 0xE75480, cstreet2 #Color frog
+	sw $t2, -4($t6) #Paint color "street" the leftmost position to the current position in $t2.
+	
+	cstreet2:
+	addi $t6, $t6, 4 #We add 4 to the position of the move.
+	j move2
+	
+	proceed2:
+	lw $t6, map($zero) #Reset $t6 with the map at position zero.
+	addi $t6, $t6, 696 #Move to the 708th map position
+	lw $t2, ($t6) #Load the color of the current position in $t2
+	lw $t3, -4($t6) #Load the color of the next position after the current one in $t3
+	bne $t2, $t3, return2 #Check if the two colors are not the same
+	lw $t2, -8($t6) #Load the color of 2 times the next position to the current one in $t3
+	beq $t2, $t3, P2 #Check if the two colors are not equal
+	j return2
+	
+	P2:
+	bne $t3, 0xFFFFFF, return2 #If in $t3 there is no truck, we return.
+	li $v0, 32 #Sleep to speed up the motion
+	li $a0, 30 #Sleep to speed up move
+	syscall #Sleep to speed up move
+	lw $t9, -12($t6) #Store color for next 2 positions
+	beq $t9, 0xE75480, loseLife #Color Frog (Frog got run over xD putty D:)
+	lw $t4, street #We store the color of "street" in $t4
+	sw $t4, ($t6) #Paint the current position of the street color
+	lw $t4, truck #Store color of "truck" in $t4
+	sw $t4, -8($t6) #Paint the color "street" 2 times the left position to the current position in $t2
+	sw $t4, -12($t6) #Paint the color "street" 3 times the left position to the current position in $t2.
+	return2:
+	jr $ra #We return to where the function was called.
+
+	
+	
+	#end the game#
+	endGame:
+	li $v0, 50 #Confirmation syscall number.
+	la $a0, question #Store in $a0 the question if you want to play again
+	syscall
+	beq $a0, 0, startGame #Restart the game
+	li $v0, 10 #Close the execution
+	syscall
+	
+	
+	
+	
+	
+	
+	
+	
+
